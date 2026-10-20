@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⭕ Tic-Tac-Toe vs AI</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0;
+    display: flex; flex-direction: column; align-items: center;
+    min-height: 100vh; padding: 24px;
+  }
+  h1 { margin-bottom: 4px; }
+  p.subtitle { color: #94a3b8; margin-bottom: 16px; font-size: 14px; }
+  #scores { display: flex; gap: 28px; margin-bottom: 18px; font-size: 17px; }
+  #scores b { font-size: 22px; }
+  #win b { color: #4ade80; } #lose b { color: #f87171; } #draw b { color: #fbbf24; }
+  #board {
+    display: grid; grid-template-columns: repeat(3, 100px);
+    grid-template-rows: repeat(3, 100px); gap: 10px;
+  }
+  .cell {
+    background: #1e293b; border: 2px solid #334155; border-radius: 10px;
+    font-size: 56px; font-weight: bold; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .15s;
+  }
+  .cell:hover:empty { background: #273549; }
+  .cell.x { color: #4ade80; }
+  .cell.o { color: #f87171; }
+  .cell.win { background: rgba(74,222,128,.25); border-color: #4ade80; }
+  #status { margin: 18px 0 6px; font-size: 19px; min-height: 28px; }
+  button {
+    background: #4ade80; color: #052e16; border: none;
+    padding: 12px 30px; font-size: 16px; font-weight: bold;
+    border-radius: 8px; cursor: pointer; margin-top: 10px;
+  }
+  button:hover { background: #22c55e; }
+</style>
+</head>
+<body>
+  <h1>⭕ Tic-Tac-Toe</h1>
+  <p class="subtitle">Kamu <b style="color:#4ade80">X</b> melawan AI <b style="color:#f87171">O</b> (Minimax)</p>
+  <div id="scores">
+    <div id="win">Menang <b>0</b></div>
+    <div id="lose">Kalah <b>0</b></div>
+    <div id="draw">Seri <b>0</b></div>
+  </div>
+  <div id="board"></div>
+  <div id="status">Giliranmu! Klik kotak kosong.</div>
+  <button id="resetBtn">🔄 Main Lagi</button>
+
+<script>
+const boardEl = document.getElementById('board');
+const statusEl = document.getElementById('status');
+const HUMAN = 'X', AI = 'O';
+let board, gameOver;
+let scores = { win: 0, lose: 0, draw: 0 };
+
+const LINES = [
+  [0,1,2],[3,4,5],[6,7,8],
+  [0,3,6],[1,4,7],[2,5,8],
+  [0,4,8],[2,4,6]
+];
+
+function newGame() {
+  board = Array(9).fill('');
+  gameOver = false;
+  boardEl.innerHTML = '';
+  for (let i = 0; i < 9; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.addEventListener('click', () => humanMove(i));
+    boardEl.appendChild(cell);
+  }
+  statusEl.textContent = 'Giliranmu! Klik kotak kosong.';
+}
+
+function render(winLine) {
+  const cells = boardEl.children;
+  for (let i = 0; i < 9; i++) {
+    cells[i].textContent = board[i];
+    cells[i].className = 'cell' + (board[i] ? ' ' + board[i].toLowerCase() : '');
+  }
+  if (winLine) winLine.forEach(i => cells[i].classList.add('win'));
+}
+
+function checkWinner(b) {
+  for (const line of LINES) {
+    const [a, c, d] = line;
+    if (b[a] && b[a] === b[c] && b[a] === b[d]) {
+      return { winner: b[a], line };
+    }
+  }
+  return b.includes('') ? null : { winner: 'draw', line: null };
+}
+
+function humanMove(i) {
+  if (gameOver || board[i]) return;
+  board[i] = HUMAN;
+  render();
+  let res = checkWinner(board);
+  if (res) return endGame(res);
+  statusEl.textContent = 'AI sedang berpikir…';
+  setTimeout(() => { aiMove(); }, 350);
+}
+
+function aiMove() {
+  if (gameOver) return;
+  const best = bestMove();
+  board[best] = AI;
+  render();
+  const res = checkWinner(board);
+  if (res) return endGame(res);
+  statusEl.textContent = 'Giliranmu! Klik kotak kosong.';
+}
+
+function endGame(res) {
+  gameOver = true;
+  render(res.line);
+  if (res.winner === 'draw') {
+    statusEl.textContent = '🤝 Seri!';
+    scores.draw++;
+  } else if (res.winner === HUMAN) {
+    statusEl.textContent = '🎉 Kamu MENANG!';
+    scores.win++;
+  } else {
+    statusEl.textContent = '🤖 AI menang. Coba lagi!';
+    scores.lose++;
+  }
+  updateScores();
+}
+
+// ---------- Minimax ----------
+function emptyCells(b) {
+  const idx = [];
+  b.forEach((v, i) => { if (!v) idx.push(i); });
+  return idx;
+}
+
+function minimax(b, isMax, depth) {
+  const res = checkWinner(b);
+  if (res) {
+    if (res.winner === AI) return 10 - depth;
+    if (res.winner === HUMAN) return depth - 10;
+    return 0;
+  }
+  if (isMax) {
+    let best = -Infinity;
+    for (const i of emptyCells(b)) {
+      b[i] = AI;
+      best = Math.max(best, minimax(b, false, depth + 1));
+      b[i] = '';
+    }
+    return best;
+  } else {
+    let best = Infinity;
+    for (const i of emptyCells(b)) {
+      b[i] = HUMAN;
+      best = Math.min(best, minimax(b, true, depth + 1));
+      b[i] = '';
+    }
+    return best;
+  }
+}
+
+function bestMove() {
+  let bestVal = -Infinity, move = -1;
+  for (const i of emptyCells(board)) {
+    board[i] = AI;
+    const val = minimax(board, false, 0);
+    board[i] = '';
+    if (val > bestVal) { bestVal = val; move = i; }
+  }
+  return move;
+}
+
+function updateScores() {
+  document.querySelector('#win b').textContent = scores.win;
+  document.querySelector('#lose b').textContent = scores.lose;
+  document.querySelector('#draw b').textContent = scores.draw;
+}
+
+document.getElementById('resetBtn').addEventListener('click', newGame);
+newGame();
+</script>
+</body>
+</html>
